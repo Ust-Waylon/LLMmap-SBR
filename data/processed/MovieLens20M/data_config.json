@@ -1,0 +1,42 @@
+{
+  "category": "MovieLens20M",
+  "n_items": 14028,
+  "splits": {
+    "train": {
+      "sessions": 527044,
+      "examples": 5156806
+    },
+    "valid": {
+      "sessions": 53790,
+      "examples": 53790
+    },
+    "test": {
+      "sessions": 46773,
+      "examples": 46773
+    }
+  },
+  "sessionization": "gap_sessions",
+  "interval_hours": 1.0,
+  "min_session_length": 2,
+  "min_item_frequency": 5,
+  "remove_consecutive_duplicates": true,
+  "max_session_length": 20,
+  "truncate_from": "head",
+  "split_ratios": [
+    0.8,
+    0.1,
+    0.1
+  ],
+  "filter_to_train_items": true,
+  "train_prefix_augmentation": true,
+  "valid_test_last_click_only": true,
+  "card_fields": [
+    "title",
+    "genres",
+    "tags"
+  ],
+  "max_title_chars": 200,
+  "max_card_chars": 800,
+  "source": "MovieLens-20M ratings.csv, movies.csv, tags.csv",
+  "fingerprint": "c39f207253091409f8f84f02b06aebb52d984a7b8b7e8e80e6aa592f9d7d2f2e"
+}

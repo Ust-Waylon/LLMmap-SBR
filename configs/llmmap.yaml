@@ -1,0 +1,18 @@
+seed: 42
+model:
+  input_dim: 2560
+  output_dim: 256
+  hidden_dim: 1280
+  max_length: 20
+  layers: 2
+  heads: 4
+  dropout: 0.2
+  gamma_init: 0.05
+  temperature: 0.07
+train:
+  lr: 0.001
+  weight_decay: 0.01
+  batch_size: 512
+  epochs: 30
+  patience: 5
+  max_grad_norm: 1.0

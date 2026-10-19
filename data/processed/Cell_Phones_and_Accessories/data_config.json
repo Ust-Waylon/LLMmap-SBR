@@ -1,0 +1,33 @@
+{
+  "category": "Cell_Phones_and_Accessories",
+  "n_items": 10630,
+  "splits": {
+    "train": {
+      "sessions": 50069,
+      "examples": 88418
+    },
+    "valid": {
+      "sessions": 4831,
+      "examples": 4831
+    },
+    "test": {
+      "sessions": 2676,
+      "examples": 2676
+    }
+  },
+  "first_day_only": true,
+  "calendar_timezone": "UTC",
+  "min_session_length": 2,
+  "min_item_frequency": 5,
+  "remove_consecutive_duplicates": true,
+  "max_session_length": 20,
+  "truncate_from": "head",
+  "split_ratios": [
+    0.8,
+    0.1,
+    0.1
+  ],
+  "train_prefix_augmentation": true,
+  "valid_test_last_click_only": true,
+  "fingerprint": "c32e3dd902db35f66aa67bc8d48c9d1ba470c5cadc23b5bb8074a37e37127602"
+}

@@ -1,0 +1,33 @@
+{
+  "category": "Grocery_and_Gourmet_Food",
+  "n_items": 17579,
+  "splits": {
+    "train": {
+      "sessions": 67156,
+      "examples": 149733
+    },
+    "valid": {
+      "sessions": 7874,
+      "examples": 7874
+    },
+    "test": {
+      "sessions": 7579,
+      "examples": 7579
+    }
+  },
+  "first_day_only": true,
+  "calendar_timezone": "UTC",
+  "min_session_length": 2,
+  "min_item_frequency": 5,
+  "remove_consecutive_duplicates": true,
+  "max_session_length": 20,
+  "truncate_from": "head",
+  "split_ratios": [
+    0.8,
+    0.1,
+    0.1
+  ],
+  "train_prefix_augmentation": true,
+  "valid_test_last_click_only": true,
+  "fingerprint": "bc05ac92aea39d8719772a9add8c2a1b2cb845d5652ea2e465daa23e9e963665"
+}

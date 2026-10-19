@@ -1,0 +1,33 @@
+{
+  "category": "Movies_and_TV",
+  "n_items": 26414,
+  "splits": {
+    "train": {
+      "sessions": 84246,
+      "examples": 251033
+    },
+    "valid": {
+      "sessions": 8847,
+      "examples": 8847
+    },
+    "test": {
+      "sessions": 7895,
+      "examples": 7895
+    }
+  },
+  "first_day_only": true,
+  "calendar_timezone": "UTC",
+  "min_session_length": 2,
+  "min_item_frequency": 5,
+  "remove_consecutive_duplicates": true,
+  "max_session_length": 20,
+  "truncate_from": "head",
+  "split_ratios": [
+    0.8,
+    0.1,
+    0.1
+  ],
+  "train_prefix_augmentation": true,
+  "valid_test_last_click_only": true,
+  "fingerprint": "fd7aa1e20e07dc707933e4108f6c8703470f244c1b18d94417287215b113c14b"
+}
