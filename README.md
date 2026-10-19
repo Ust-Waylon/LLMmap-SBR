@@ -17,8 +17,6 @@ The three Amazon Reviews 2023 categories and MovieLens-20M used in the paper are
 
 Amazon sessions use each user's first active calendar day. MovieLens sessions group ratings by user and split at gaps longer than one hour. Sessions are capped at 20 items and split chronologically into training, validation, and test, with validation/test items restricted to the training catalog. Training uses prefix augmentation. Validation and test use one last-click example per session.
 
-Each directory contains `item_cards.json`, split files, and `data_config.json`. Amazon cards contain title, brand, leaf category, and price when available. MovieLens cards contain title, genres, and tags. Split files contain only `history` and `target` item IDs. The loader reads the MovieLens files `train.jsonl.gz`, `valid.jsonl.gz`, and `test.jsonl.gz` directly. No decompression or preprocessing step is needed.
-
 ## Setup
 
 Python 3.11 is required. Install a PyTorch build for your device. The example below uses CUDA 12.8:
@@ -32,7 +30,7 @@ python -m pip install -r requirements.txt
 
 ## Run
 
-Set `category` to any directory name in the table. To run MovieLens, use `category=MovieLens20M`:
+Set `category` to any directory name in the dataset table. To run MovieLens, use `category=MovieLens20M`:
 
 ```bash
 category=Cell_Phones_and_Accessories
@@ -61,5 +59,4 @@ python -m llmmapsbr evaluate \
 ```
 
 Evaluation reports **HR@20** and **MRR@20**. Hyperparameters are in `configs/llmmap.yaml`: MLP widths 2560 → 1280 → 256, two attention blocks with four heads, dropout 0.2, and initial last-skip weight 0.05. All four datasets use the same configuration.
-
-The encoder weights download on first use. Lower `--batch-size` if GPU memory is limited. Existing output directories are protected from overwriting, so skip encoding when reusing an existing cache and choose a new run directory for another training run. Loading MovieLens training prefixes requires approximately 0.87 GB for the integer history and target arrays, in addition to model and runtime memory.
+The LLM encoder weights download on first use.
