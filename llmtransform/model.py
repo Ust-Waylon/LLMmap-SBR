@@ -1,4 +1,4 @@
-"""LLMmap: MLP mapping with a last-skip self-attention session encoder."""
+"""LLM-Transform: MLP transformation module with a last-item shortcut self-attention session encoder."""
 from __future__ import annotations
 
 import torch
@@ -22,7 +22,9 @@ class AttentionBlock(nn.Module):
         return (x + self.drop(self.ff(self.norm2(x)))) * occupied
 
 
-class SessionEncoder(nn.Module):
+class SelfAttentionEncoder(nn.Module):
+    """Steps 1-2 of the session encoder: input states and self-attention blocks."""
+
     def __init__(self, width=256, layers=2, heads=4, dropout=0.2, max_length=20):
         super().__init__()
         self.max_length = max_length
@@ -48,36 +50,38 @@ class SessionEncoder(nn.Module):
         return self.norm(x) * occupied
 
 
-class LLMmap(nn.Module):
+class LLMTransform(nn.Module):
     def __init__(self, input_dim=2560, output_dim=256, hidden_dim=1280,
                  max_length=20, layers=2, heads=4, dropout=0.2, gamma_init=0.05, temperature=0.07):
         super().__init__()
         if temperature <= 0 or max_length < 1 or output_dim < 1:
             raise ValueError("Temperature, history length, and embedding width must be positive.")
         self.temperature = float(temperature)
-        self.mapping = nn.Sequential(
+        self.transformation = nn.Sequential(
             nn.Linear(input_dim, hidden_dim, bias=True), nn.LeakyReLU(0.1),
             nn.Linear(hidden_dim, output_dim, bias=True),
         )
-        self.encoder = SessionEncoder(output_dim, layers, heads, dropout, max_length)
+        self.encoder = SelfAttentionEncoder(output_dim, layers, heads, dropout, max_length)
         self.gamma = nn.Parameter(torch.tensor(float(gamma_init)))
 
-    def item_table(self, language_vectors):
-        return F.normalize(self.mapping(language_vectors), dim=-1)
+    def transform_items(self, language_reps):
+        """Transformed item embeddings u_k = Unit(MLP(a_k)); inputs are already unit norm."""
+        return F.normalize(self.transformation(language_reps), dim=-1)
 
-    def session_embedding(self, mapped_items, history):
+    def session_embedding(self, item_embeddings, history):
         valid = history >= 0
         if not bool(valid[:, -1].all()):
             raise ValueError("Each left-padded history must end in a valid item.")
-        embeddings = mapped_items[history.clamp(min=0)] * valid.unsqueeze(-1)
+        embeddings = item_embeddings[history.clamp(min=0)] * valid.unsqueeze(-1)
         last = embeddings[:, -1]
         attention = self.encoder(embeddings, valid)[:, -1]
+        # Last-item shortcut connection: e_j = Unit(u_last + gamma * Unit(e_attn)).
         return F.normalize(last + self.gamma * F.normalize(attention, dim=-1), dim=-1)
 
-    def forward(self, language_vectors, history, *, mapped_items=None):
-        mapped_items = self.item_table(language_vectors) if mapped_items is None else mapped_items
-        session = self.session_embedding(mapped_items, history)
-        scores = session @ mapped_items.T / self.temperature
+    def forward(self, language_reps, history, *, item_embeddings=None):
+        item_embeddings = self.transform_items(language_reps) if item_embeddings is None else item_embeddings
+        session = self.session_embedding(item_embeddings, history)
+        scores = session @ item_embeddings.T / self.temperature
         valid = history >= 0
         row = torch.arange(history.size(0), device=history.device)[:, None].expand_as(history)
         scores[row[valid], history[valid]] = -1e9

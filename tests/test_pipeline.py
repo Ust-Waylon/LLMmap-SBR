@@ -15,11 +15,11 @@ import torch
 from torch.nn import functional as F
 import yaml
 
-from llmmapsbr.data import examples, item_card, pack_histories, prepare, load_split
-from llmmapsbr.encode import encode
-from llmmapsbr.io import read_json, read_jsonl, write_json, write_jsonl, data_fingerprint, fingerprint
-from llmmapsbr.model import LLMmap
-from llmmapsbr.train import train, evaluate, evaluate_checkpoint, load_catalog, load_config, metrics
+from llmtransform.data import examples, item_card, pack_histories, prepare, load_split
+from llmtransform.encode import encode
+from llmtransform.io import read_json, read_jsonl, write_json, write_jsonl, data_fingerprint, fingerprint
+from llmtransform.model import LLMTransform
+from llmtransform.train import train, evaluate, evaluate_checkpoint, load_catalog, load_config, metrics
 
 torch.set_num_threads(1)
 
@@ -67,7 +67,7 @@ class ProtocolTests(unittest.TestCase):
         self.assertAlmostEqual(values["MRR@20"], 0.5)
 
     def test_first_day_head_truncation_and_split(self):
-        from llmmapsbr._sessions import assign_sbr_sessions, build_session_sequences, chronological_session_split
+        from llmtransform._sessions import assign_sbr_sessions, build_session_sequences, chronological_session_split
         import pandas as pd
         day = 86400000
         base = 1609459200000
@@ -91,24 +91,24 @@ class ModelTests(unittest.TestCase):
         self.history = torch.tensor([[-1, -1, 0], [-1, 1, 2], [3, 4, 5]])
         self.targets = torch.tensor([1, 3, 6])
 
-    def test_last_skip_formula_padding_and_backward(self):
-        model = LLMmap(input_dim=12, output_dim=8, hidden_dim=16, max_length=3,
-                          heads=2, dropout=0.0)
-        mapped = model.item_table(self.vectors)
+    def test_last_item_shortcut_formula_padding_and_backward(self):
+        model = LLMTransform(input_dim=12, output_dim=8, hidden_dim=16, max_length=3,
+                             heads=2, dropout=0.0)
+        items = model.transform_items(self.vectors)
         valid = self.history >= 0
-        embeddings = mapped[self.history.clamp(min=0)] * valid.unsqueeze(-1)
+        embeddings = items[self.history.clamp(min=0)] * valid.unsqueeze(-1)
         states = model.encoder(embeddings, valid)
         self.assertTrue(torch.equal(states[~valid], torch.zeros_like(states[~valid])))
         expected = F.normalize(embeddings[:, -1] + model.gamma * F.normalize(states[:, -1], dim=-1), dim=-1)
-        torch.testing.assert_close(model.session_embedding(mapped, self.history), expected)
+        torch.testing.assert_close(model.session_embedding(items, self.history), expected)
         scores = model(self.vectors, self.history)
         F.cross_entropy(scores, self.targets).backward()
         self.assertTrue(all(p.grad is not None and bool(torch.isfinite(p.grad).all()) for p in model.parameters()))
 
     def test_scoring_excludes_all_history_items(self):
         repeated = torch.tensor([[-1, 0, 0], [-1, 1, 2], [3, 4, 5]])
-        model = LLMmap(input_dim=12, output_dim=8,
-                          hidden_dim=16, heads=2, dropout=0.0).eval()
+        model = LLMTransform(input_dim=12, output_dim=8,
+                             hidden_dim=16, heads=2, dropout=0.0).eval()
         scores = model(self.vectors, repeated)
         self.assertTrue(torch.equal(scores[0, 0], torch.tensor(-1e9)))
         self.assertTrue(bool((scores[1, 1:3] == -1e9).all()))
@@ -118,7 +118,7 @@ class ModelTests(unittest.TestCase):
             model(self.vectors, repeated, self.targets)
 
     def test_evaluation_labels_do_not_change_candidate_scores(self):
-        model = LLMmap(input_dim=12, output_dim=8).eval()
+        model = LLMTransform(input_dim=12, output_dim=8).eval()
         observed = []
         hook = model.register_forward_hook(lambda _model, _inputs, output: observed.append(output.clone()))
         try:
@@ -131,7 +131,7 @@ class ModelTests(unittest.TestCase):
         self.assertEqual(result["HR@20"], 0.0)
 
     def test_attention_is_causal(self):
-        model = LLMmap(input_dim=12, output_dim=8, hidden_dim=16, max_length=3, heads=2, dropout=0.0).eval()
+        model = LLMTransform(input_dim=12, output_dim=8, hidden_dim=16, max_length=3, heads=2, dropout=0.0).eval()
         embeddings = torch.randn(1, 3, 8)
         valid = torch.ones(1, 3, dtype=torch.bool)
         before = model.encoder(embeddings, valid)
@@ -192,9 +192,9 @@ class EndToEndTests(unittest.TestCase):
     def test_train_reload_and_mismatched_artifacts(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            data, embeddings = root / "data", root / "embeddings"
+            data, language = root / "data", root / "language"
             data.mkdir()
-            embeddings.mkdir()
+            language.mkdir()
             ids = [str(i) for i in range(25)]
             write_json(data / "item_cards.json", {item: f"Title: {item}" for item in ids})
             rows = [{"history": [str(i), str((i + 1) % 25)], "target": str((i + 2) % 25)} for i in range(25)]
@@ -205,32 +205,32 @@ class EndToEndTests(unittest.TestCase):
             (data / "train.jsonl").unlink()
             vectors = np.random.default_rng(42).normal(size=(25, 2560)).astype(np.float32)
             vectors /= np.linalg.norm(vectors, axis=1, keepdims=True)
-            np.save(embeddings / "item_embeddings.npy", vectors)
-            write_json(embeddings / "item_ids.json", ids)
-            write_json(embeddings / "encoder_config.json", {
+            np.save(language / "language_representations.npy", vectors)
+            write_json(language / "item_ids.json", ids)
+            write_json(language / "encoder_config.json", {
                 "data_fingerprint": data_fingerprint(data),
-                "embedding_fingerprint": fingerprint([embeddings / "item_ids.json", embeddings / "item_embeddings.npy"])})
+                "language_fingerprint": fingerprint([language / "item_ids.json", language / "language_representations.npy"])})
             cfg = {"seed": 42, "model": {"input_dim": 2560, "output_dim": 8,
                    "hidden_dim": 16, "max_length": 3, "heads": 2, "dropout": 0.0},
                    "train": {"epochs": 2, "batch_size": 8, "lr": 0.001, "weight_decay": 0.01,
                              "patience": 5, "max_grad_norm": 1.0}}
-            config = root / "llmmap.yaml"
+            config = root / "llm_transform.yaml"
             config.write_text(yaml.safe_dump(cfg))
-            output = root / "llmmap"
-            train(config, data, embeddings, output, device="cpu")
-            metrics_out = evaluate_checkpoint(output / "model.pt", data, embeddings, device="cpu")
+            output = root / "llm_transform"
+            train(config, data, language, output, device="cpu")
+            metrics_out = evaluate_checkpoint(output / "model.pt", data, language, device="cpu")
             self.assertEqual(metrics_out["n_examples"], 25)
             self.assertTrue(0 <= metrics_out["MRR@20"] <= metrics_out["HR@20"] <= 1)
             with self.assertRaises(FileExistsError):
-                train(config, data, embeddings, output, device="cpu")
+                train(config, data, language, output, device="cpu")
             # Changed data must never silently reuse a checkpoint/cache.
             write_jsonl(data / "test.jsonl", rows[:-1])
             with self.assertRaisesRegex(ValueError, "Data changed"):
-                evaluate_checkpoint(root / "llmmap/model.pt", data, embeddings, device="cpu")
+                evaluate_checkpoint(root / "llm_transform/model.pt", data, language, device="cpu")
 
     def test_configs_have_no_history_switch(self):
         base = Path(__file__).resolve().parents[1]
-        cfg = load_config(base / "configs" / "llmmap.yaml")
+        cfg = load_config(base / "configs" / "llm_transform.yaml")
         self.assertNotIn("mask_history", cfg["train"])
         cfg["train"]["mask_history"] = False
         with tempfile.TemporaryDirectory() as directory:

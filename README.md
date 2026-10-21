@@ -1,8 +1,8 @@
-# LLMmap-SBR
+# LLM-Transform
 
-Code for **LLMmap-SBR: Mapping LLM Representations into Item Embeddings for Session-based Recommendation**.
+Code for **LLM-Transform: Transforming LLM Representations into Item Embeddings for Session-based Recommendation**.
 
-The proposed method, **LLMmap**, maps item card's language representation from a frozen Qwen3-Embedding-4B through a two-layer MLP and uses a last-skip self-attention session encoder for full-catalog next-item prediction.
+**LLM-Transform** encodes each item card with a frozen Qwen3-Embedding-4B to obtain its language representation. A two-layer MLP, the transformation module, transforms the language representation into the behavior space to give the transformed item embedding, which is the only item embedding used for session encoding and next-item scoring. The last-item shortcut self-attention session encoder reads the transformed item embeddings of a session and adds the transformed item embedding of the last item to the self-attention representation, and the model scores the full catalog for next-item prediction.
 
 ## Included datasets
 
@@ -35,28 +35,28 @@ Set `category` to any directory name in the dataset table. To run MovieLens, use
 ```bash
 category=Cell_Phones_and_Accessories
 data_dir="data/processed/$category"
-embeddings_dir="outputs/$category/embeddings"
-run_dir="outputs/$category/llmmap"
+language_dir="outputs/$category/language_representations"
+run_dir="outputs/$category/llm_transform"
 mkdir -p outputs
 
-# Encode item cards once and reuse the frozen embeddings.
-python -m llmmapsbr encode \
-  --data-dir "$data_dir" --output "$embeddings_dir" \
+# Encode item cards once and reuse the frozen language representations.
+python -m llmtransform encode \
+  --data-dir "$data_dir" --output "$language_dir" \
   --device cuda --batch-size 16 > "outputs/encode_$category.log" 2>&1
 
 # Train and select the checkpoint by validation HR@20.
-python -m llmmapsbr train \
-  --config configs/llmmap.yaml \
-  --data-dir "$data_dir" --embeddings-dir "$embeddings_dir" \
+python -m llmtransform train \
+  --config configs/llm_transform.yaml \
+  --data-dir "$data_dir" --language-dir "$language_dir" \
   --output "$run_dir" --device cuda > "outputs/train_$category.log" 2>&1
 
 # Evaluate the selected checkpoint on the last-click test split.
-python -m llmmapsbr evaluate \
+python -m llmtransform evaluate \
   --checkpoint "$run_dir/model.pt" \
-  --data-dir "$data_dir" --embeddings-dir "$embeddings_dir" \
+  --data-dir "$data_dir" --language-dir "$language_dir" \
   --split test --device cuda --output "$run_dir/test_metrics.json" \
   > "outputs/evaluate_$category.log" 2>&1
 ```
 
-Evaluation reports **HR@20** and **MRR@20**. Hyperparameters are in `configs/llmmap.yaml`: MLP widths 2560 → 1280 → 256, two attention blocks with four heads, dropout 0.2, and initial last-skip weight 0.05. All four datasets use the same configuration.
+Evaluation reports **HR@20** and **MRR@20**. Hyperparameters are in `configs/llm_transform.yaml`: transformation-module MLP widths 2560 → 1280 → 256, two self-attention blocks with four heads, dropout 0.2, and initial last-item shortcut weight γ = 0.05. All four datasets use the same configuration.
 The LLM encoder weights download on first use.
